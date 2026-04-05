@@ -15,7 +15,7 @@ Go [back to home page](../../index.html)
 
 - Implementations:
 	- [C++](./implementations/hopcroft.cpp)
-	- [Java](./implementations/HopcroftMinimize.java)
+	- [Java](./implementations/Hopcroft.java)
 	- [Python](./implementations/hopcroft.py)
 	- io
 		- [test input 1](./implementations/io/sample.in.1)
