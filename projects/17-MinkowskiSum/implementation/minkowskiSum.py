@@ -31,9 +31,12 @@ def minkowskiSum(poly1, poly2):
     poly1 = reorderPolygon(poly1)
     poly2 = reorderPolygon(poly2)
 
-    # last point loops around for simpler impl
+    # two points loop around for simpler implementation
+    # makes sure each edge is accounted for
     poly1.append(poly1[0])
+    poly1.append(poly1[1])
     poly2.append(poly2[0])
+    poly2.append(poly2[1])
 
     # pointers for iterating through the polygons
     ptr1 = 0
