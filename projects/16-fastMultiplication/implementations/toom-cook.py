@@ -265,6 +265,10 @@ def toom_cook_multiply(x: int, y: int, parts: int = 3, threshold: int = 2) -> in
 
 #     print("All tests passed.")
 
+# Usage:
+# cmd/bash: python implementations/toom-cook.py < implementations/io/sample.in.1
+# PowerShell: Get-Content implementations/io/sample.in.1 | python implementations/toom-cook.py
+
 def solve():
     input_data = sys.stdin.read().split()
     
