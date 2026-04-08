@@ -20,7 +20,7 @@ Go [back to home page](../../index.html)
 - I/O (three separate cases; first line of each test file is the case count, usually `1`)
 	- Tests: [test_1.txt](./implementation/io/test_1.txt), [test_2.txt](./implementation/io/test_2.txt), [test_3.txt](./implementation/io/test_3.txt)
 	- Python expected: [expected_output_python_1.txt](./implementation/io/expected_output_python_1.txt), [_2](./implementation/io/expected_output_python_2.txt), [_3](./implementation/io/expected_output_python_3.txt)
-	- [expected_output_java.txt](./implementation/io/expected_output_java.txt) — Java (placeholder)
+	- Java expected: [expected_output_java_1.txt](./implementation/io/expected_output_java_1.txt), [_2](./implementation/io/expected_output_java_2.txt), [_3](./implementation/io/expected_output_java_3.txt)
 	- [expected_output_cpp.txt](./implementation/io/expected_output_cpp.txt) — C++ (placeholder)
 
 **Implementation note.** Different hash schemes change false positives vs absent; compare each language to its own expected file. Example: `python3 BloomFilter.py implementation/io/test_1.txt` then diff against `expected_output_python_1.txt`.
