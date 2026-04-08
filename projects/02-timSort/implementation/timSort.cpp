@@ -40,31 +40,122 @@ void insertion_sort(vector<Entry>& entries, int left, int right) {
     }
 }
 
+// binary search to find the index where the key should be inserted
+// allow_equal is true when the leftside is galloping and false when the rightside is galloping
+// this is because to maintain stability, values of the left that are equal to values on the right should come first
+int binary_search(const vector<Entry>& part, int left, const Entry& key, bool allow_equal) {
+    int right = static_cast<int>(part.size()) - 1;
+    while (left <= right) {
+        int mid = left + (right - left) / 2;
+        // if left side is galloping, it will return the rightmost equal element if there are equal elements to the key
+        // if the right side is galloping, it will return the greatest element smaller than the key
+        if (part[mid].timestamp < key.timestamp || (allow_equal && part[mid].timestamp == key.timestamp)) {
+            left = mid + 1; 
+        } else {
+            right = mid - 1;
+        }
+    }
+    return left;
+}
+
+// galloping mode: quickly finds how many more elements in a part should be copied over
+// does this by exponentially increasing index, and then use binary search to find the exact element to stop at
+// returns the amount of elements to copy over
+int gallop(const vector<Entry>& part, int left, const Entry& key, bool allow_equal) {
+    // if the index is out of bounds or the element should come after the key, don't gallop
+    if (left >= static_cast<int>(part.size())) {
+        return 0;
+    }
+    // if first element already should not be taken, no gallop
+    if (part[left].timestamp > key.timestamp || (!allow_equal && part[left].timestamp == key.timestamp)) {
+        return 0;
+    }
+    int idx = 1;
+    // if the left side is galloping we want to pass elements that are equal to maintain stability
+    // if the right side is galloping we stop before elements that are equal
+    while (left + idx < static_cast<int>(part.size()) &&
+           (part[left + idx].timestamp < key.timestamp ||
+            (allow_equal && part[left + idx].timestamp == key.timestamp))) {
+        idx *= 2;
+    }
+    int start = left + idx / 2;
+    return binary_search(part, start, key, allow_equal) - left;
+}
+
 // merge two pre-sorted runs into one: combine left->mid with mid+1->right
 // fast on large pre-sorted chunks
-void merge(vector<Entry>& entries, int left, int mid, int right) {
+void merge(vector<Entry>& entries, int left, int mid, int right, int min_gallop = 7) {
     // create copies of each run
     vector<Entry> left_part(entries.begin() + left, entries.begin() + mid + 1);
     vector<Entry> right_part(entries.begin() + mid + 1, entries.begin() + right + 1);
-    int i = 0; // idx in left run
-    int j = 0; // idx in right run
-    int k = left; // idx to write to in original array
-    while (i < left_part.size() && j < right_part.size()) { // while both runs have elements remaining
-        if (left_part[i].timestamp <= right_part[j].timestamp) { // choose lower timestamp
-            entries[k] = left_part[i]; // left run is smaller
-            i++;
+    // idx for left run, right run
+    int i = 0;
+    int j = 0;
+    // idx to write to in original array
+    int k = left;
+    int left_size = left_part.size();
+    int right_size = right_part.size();
+    // counters to track how many times in a row we have taken from the left or right run
+    // used to determine when to switch to galloping mode
+    int left_count = 0;
+    int right_count = 0;
+    // while both runs have elements remaining
+    while (i < left_size && j < right_size) {
+        // choose lower timestamp
+        if (left_part[i].timestamp <= right_part[j].timestamp) {
+            // if we haven't taken the left run too many times, take the next element from the left run and update counters
+            if (left_count < min_gallop) {
+                entries[k] = left_part[i];
+                i++;
+                k++;
+                left_count++;
+                right_count = 0;
+            }
         } else {
-            entries[k] = right_part[j]; // right run is smaller
-            j++;
+            // if we haven't taken the right run too many times, take the next element from the right run and update counters
+            if (right_count < min_gallop) {
+                entries[k] = right_part[j];
+                j++;
+                k++;
+                right_count++;
+                left_count = 0;
+            }
         }
-        k++;
+        // if we've been taking from the left run a couple times in a row,
+        // switch to galloping mode instead of comparing each element one by one
+        if (left_count >= min_gallop && j < right_size) {
+            // the amount of elements to copy over from the left run
+            int gallop_count = gallop(left_part, i, right_part[j], true);
+            for (int t = 0; t < gallop_count; t++) {
+                entries[k] = left_part[i];
+                i++;
+                k++;
+            }
+            // reset counters after galloping, as we will be switching to the right run after this
+            left_count = 0;
+        }
+
+        // if we've been taking from the right run a couple times in a row,
+        // switch to galloping mode instead of comparing each element one by one
+        else if (right_count >= min_gallop && i < left_size) {
+            // the amount of elements to copy over from the right run
+            int gallop_count = gallop(right_part, j, left_part[i], false);
+            for (int t = 0; t < gallop_count; t++) {
+                entries[k] = right_part[j];
+                j++;
+                k++;
+            }
+            // reset counters after galloping, as we will be switching to the left run after this
+            right_count = 0;
+        }
     }
-    while (i < left_part.size()) { // left run had leftover items after right is empty, copy leftovers over as is
+    // when one of the runs is empty, copy over the remaining elements from the other run
+    while (i < left_size) {
         entries[k] = left_part[i];
         i++;
         k++;
     }
-    while (j < right_part.size()) { // right run had leftover items after left is empty, copy leftovers over as is
+    while (j < right_size) {
         entries[k] = right_part[j];
         j++;
         k++;
@@ -107,23 +198,55 @@ vector<pair<int, int>> find_runs(vector<Entry>& entries, int min_run) {
 
 
 // the main sorting function that combines partially sorted parts and efficiently merges them using runs
-void tim_sort(vector<Entry>& entries) {
-    const int MIN_RUN = 4; // sets the minimum length of a run to prevent inefficiency of small runs
-    vector<pair<int, int>> runs = find_runs(entries, MIN_RUN); // find and store all runs within entries
-    while (runs.size() > 1) { // loop through every run merging until only one run remains (fully sorted)
-        vector<pair<int, int>> merged_runs; // store new merged runs from prior iterations through the loop
-        for (int i = 0; i < runs.size(); i += 2) { // loop in steps of two -> handle two runs at a time (merging)
-            if (i + 1 < runs.size()) { // check if there are two runs available to merge, if odd continue 
-                int left = runs[i].first;
-                int mid = runs[i].second;
-                int right = runs[i + 1].second;
-                merge(entries, left, mid, right); // merge the two runs using mergesort algorithm 
-                merged_runs.push_back({left, right}); // store the new merged run
-            } else {
-                merged_runs.push_back(runs[i]); // handles the case where there was an odd run out and stores it as is
+// min_run sets the minimum length of a run to prevent inefficiency of small runs
+void tim_sort(vector<Entry>& entries, int min_run = 4) {
+    // find and store all runs within entries
+    vector<pair<int, int>> runs = find_runs(entries, min_run);
+    // add runs to a stack
+    vector<pair<int, int>> stack;
+    for (pair<int, int> run : runs) {
+        stack.push_back(run);
+        // if there are at least 3 runs on the stack, check if the last 3 runs satisfy the merging conditions
+        if (stack.size() >= 3) {
+            // get the lengths of the last 3 runs
+            int x = stack[stack.size() - 1].second - stack[stack.size() - 1].first + 1;
+            int y = stack[stack.size() - 2].second - stack[stack.size() - 2].first + 1;
+            int z = stack[stack.size() - 3].second - stack[stack.size() - 3].first + 1;
+            // if the two topmost runs combined are smaller than the third, and the topmost run is smaller than the second, do not merge yet
+            // BUT if either of these conditions are broken, merge the middle run with the smaller of the top and third run and repeat until the conditions are satisfied again
+            // this reduces the amount of times we have to copy large runs of elements and prioritizes merging smaller runs first
+            while (x + y >= z || x >= y) {
+                // if the top run is smaller than the third run, merge the top run with the middle run
+                if (x < z) {
+                    merge(entries, stack[stack.size() - 2].first, stack[stack.size() - 2].second, stack[stack.size() - 1].second);
+                    // update stack to reflect the merge
+                    stack[stack.size() - 2] = {stack[stack.size() - 2].first, stack[stack.size() - 1].second};
+                    stack.pop_back();
+                }
+                // else merge the middle run with the third run
+                else {
+                    merge(entries, stack[stack.size() - 3].first, stack[stack.size() - 3].second, stack[stack.size() - 2].second);
+                    // update stack to reflect the merge
+                    stack[stack.size() - 3] = {stack[stack.size() - 3].first, stack[stack.size() - 2].second};
+                    stack.erase(stack.end() - 2);
+                }
+                // update the lengths of the last 3 runs after the merge
+                if (stack.size() >= 3) {
+                    x = stack[stack.size() - 1].second - stack[stack.size() - 1].first + 1;
+                    y = stack[stack.size() - 2].second - stack[stack.size() - 2].first + 1;
+                    z = stack[stack.size() - 3].second - stack[stack.size() - 3].first + 1;
+                } else {
+                    break;
+                }
             }
         }
-        runs = merged_runs; // replace old runs with the newly merged runs (updating the list for further iterations)
+    }
+    // once all runs have been added to the stack, merge remaining runs until only one run remains which is the fully sorted list
+    while (stack.size() > 1) {
+        // merge the top two runs on the stack, which are the smallest runs remaining
+        merge(entries, stack[stack.size() - 2].first, stack[stack.size() - 2].second, stack[stack.size() - 1].second);
+        stack[stack.size() - 2] = {stack[stack.size() - 2].first, stack[stack.size() - 1].second};
+        stack.pop_back();
     }
 }
 

@@ -28,9 +28,47 @@ def insertion_sort(entries, left, right):
             j -= 1
         entries[j + 1] = key
 
+# binary search to find the index where the key should be inserted
+# allow_equal is true when the leftside is galloping and false when the rightside is galloping
+# this is because to maintain stability, values of the left that are equal to values on the right should come first
+def binary_search(part, left, key, allow_equal):
+    right = len(part) - 1
+    while left <= right:
+        mid = left + (right - left) // 2
+
+        # if left side is galloping, it will return the rightmost equal element if there are equal elements to the key
+        # if the right side is galloping, it will return the greatest element smaller than the key
+        if part[mid].timestamp < key.timestamp or (allow_equal and part[mid].timestamp == key.timestamp):
+            left = mid + 1
+        else:
+            right = mid - 1
+    return left
+
+# galloping mode: quickly finds how many more elements in a part should be copied over
+# does this by exponentially increasing index, and then use binary search to find the exact element to stop at
+# returns the amount of elements to copy over
+def gallop(part, left, key, allow_equal):
+    # if the index is out of bounds or the element should come after the key, don't gallop
+    if left >= len(part) or part[left].timestamp > key.timestamp or (not allow_equal and part[left].timestamp == key.timestamp):
+        return 0
+    idx = 1
+
+    while left + idx < len(part) and (
+        part[left + idx].timestamp < key.timestamp or 
+        
+        # if the left side is galloping we want to pass elements that are equal to maintain stability
+        # if the right side is galloping we stop before elements that are equal
+        (allow_equal and part[left + idx].timestamp == key.timestamp)
+    ):
+        # each time, double the index so we check elements faster and faster until we find one greater than the key
+        idx *= 2
+
+    # then we use binary search to find the exact element to stop at
+    return binary_search(part, left + idx // 2, key, allow_equal) - left
+
 # merge two pre-sorted runs into one: combine left->mid with mid+1->right
 # fast on large pre-sorted chunks
-def merge(entries, left, mid, right):
+def merge(entries, left, mid, right, min_gallop=7):
     # create copies of each run
     left_part = entries[left:mid + 1]
     right_part = entries[mid + 1:right + 1]
@@ -41,22 +79,63 @@ def merge(entries, left, mid, right):
     # idx to write to in original array
     k = left
     
+    # counters to track how many times in a row we have taken from the left or right run
+    # used to determine when to switch to galloping mode
+    left_count = right_count = 0
+
     # while both runs have elements remaining
     while i < len(left_part) and j < len(right_part):
+
         # choose lower timestamp
         if left_part[i].timestamp <= right_part[j].timestamp:
-            entries[k] = left_part[i]
-            i += 1
+
+            # if we haven't taken the left run too many times, take the next element from the left run and update counters
+            if left_count < min_gallop:
+                entries[k] = left_part[i]
+                i += 1
+                left_count += 1
+                right_count = 0
+            
         else:
-            entries[k] = right_part[j]
-            j += 1
+            # if we haven't taken the right run too many times, take the next element from the right run and update counters
+            if right_count < min_gallop:
+                entries[k] = right_part[j]
+                j += 1
+                right_count += 1
+                left_count = 0
         k += 1
-    
+        
+        # if we've been taking from the left run a couple times in a row, it probably means the left run has a lot of elements smaller than or equal to the current element in the right run, 
+        # so we can switch to galloping mode instead of comparing each element one by one
+        if left_count >= min_gallop:
+            # the amount of elements to copy over from the left run
+            gallop_count = gallop(left_part, i, right_part[j], True)
+            for _ in range(gallop_count):
+                entries[k] = left_part[i]
+                i += 1
+                k += 1
+            
+            # reset counters after galloping, as we will be switching to the right run after this
+            left_count = 0
+        # if we've been taking from the right run a couple times in a row, it probably means the right run has a lot of elements smaller than the current element in the left run,
+        # so we can switch to galloping mode instead of comparing each element one by one
+        elif right_count >= min_gallop:
+            # the amount of elements to copy over from the right run
+            gallop_count = gallop(right_part, j, left_part[i], False)
+            for _ in range(gallop_count):
+                entries[k] = right_part[j]
+                j += 1
+                k += 1
+            # reset counters after galloping, as we will be switching to the left run after this
+            right_count = 0
+
+            
+        
+    # when one of the runs is empty, copy over the remaining elements from the other run
     while i < len(left_part):
         entries[k] = left_part[i]
         i += 1
         k += 1
-    
     while j < len(right_part):
         entries[k] = right_part[j]
         j += 1
@@ -109,34 +188,60 @@ def find_runs(entries, min_run):
     return runs
 
 # the main sorting function that combines partially sorted parts and efficiently merges them using runs
-def tim_sort(entries):
-    # sets the minimum length of a run to prevent inefficiency of small runs
-    min_run = 4
+# min_run sets the minimum length of a run to prevent inefficiency of small runs
+def tim_sort(entries, min_run=4):
 
     # find and store all runs within entries
     runs = find_runs(entries, min_run)
 
-    # iteratively merge runs together until only one run remains (the whole sorted array)
-    while len(runs) > 1:
-        merged_runs = []
+    # add runs to a stack
+    stack = []
+    for run in runs:
+        stack.append(run)
 
-        # loop in steps of two -> handle two runs at a time (merging)
-        for i in range(0, len(runs) - 1, 2):
-            left = runs[i][0]
-            mid = runs[i][1]
-            right = runs[i + 1][1]
+        # if there are at least 3 runs on the stack, check if the last 3 runs satisfy the merging conditions
+        if len(stack) >= 3:
+            # get the lengths of the last 3 runs
+            x = stack[-1][1] - stack[-1][0] + 1
+            y = stack[-2][1] - stack[-2][0] + 1
+            z = stack[-3][1] - stack[-3][0] + 1
 
-            # merge the two runs
-            merge(entries, left, mid, right)
-            # store the new merged run
-            merged_runs.append((left, right))
-        
-        # handles the case where there was an odd run out and stores it as is
-        if len(runs) % 2 == 1:
-            merged_runs.append(runs[-1]) 
-        
-        # replace old runs with the newly merged runs (updating the list for further iterations)
-        runs = merged_runs
+            # if the two topmost runs combined are smaller than the third, and the topmost run is smaller than the second, do not merge yet
+            # BUT if either of these conditions are broken, merge the middle run with the smaller of the top and third run and repeat until the conditions are satisfied again
+            # This reduces the amount of times we have to copy large runs of elements and prioritizes merging smaller runs first
+            while x + y >= z or x >= y:
+                # if the top run is smaller than the third run, merge the top run with the middle run
+                if x < z:
+                    merge(entries, stack[-2][0], stack[-2][1], stack[-1][1])
+                    
+                    # update stack to reflect the merge
+                    stack[-2] = (stack[-2][0], stack[-1][1])
+                    stack.pop()
+                # else merge the middle run with the third run
+                else:
+                    merge(entries, stack[-3][0], stack[-3][1], stack[-2][1])
+                    
+                    # update stack to reflect the merge
+                    stack[-3] = (stack[-3][0], stack[-2][1])
+                    stack.pop(-2)
+                
+                # update the lengths of the last 3 runs after the merge
+                if len(stack) >= 3:
+                    x = stack[-1][1] - stack[-1][0] + 1
+                    y = stack[-2][1] - stack[-2][0] + 1
+                    z = stack[-3][1] - stack[-3][0] + 1
+                else:
+                    break
+            
+    # once all runs have been added to the stack, merge remaining runs until only one run remains which is the fully sorted list
+    while len(stack) > 1:
+        # merge the top two runs on the stack, which are the smallest runs remaining
+        merge(entries, stack[-2][0], stack[-2][1], stack[-1][1])
+        stack[-2] = (stack[-2][0], stack[-1][1])
+        stack.pop()
+            
+
+
 
 if __name__ == "__main__":
     # number of entries to be sorted

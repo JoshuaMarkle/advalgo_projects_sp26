@@ -44,9 +44,37 @@ public class timSort {
         }
     }
 
+    // binary search to find the index where the key should be inserted
+    private static int binarySearch(List<Entry> part, int left, Entry key, boolean allowEqual) {
+        int right = part.size() - 1;
+        while (left <= right) {
+            int mid = left + (right - left) / 2;
+            if (part.get(mid).timestamp < key.timestamp || (allowEqual && part.get(mid).timestamp == key.timestamp)) {
+                left = mid + 1;
+            } else {
+                right = mid - 1;
+            }
+        }
+        return left;
+    }
+
+    // galloping mode: quickly finds how many more elements in a part should be copied over
+    private static int gallop(List<Entry> part, int left, Entry key, boolean allowEqual) {
+        if (left >= part.size() || part.get(left).timestamp > key.timestamp || (!allowEqual && part.get(left).timestamp == key.timestamp)) {
+            return 0;
+        }
+        int idx = 1;
+        while (left + idx < part.size() && (part.get(left + idx).timestamp < key.timestamp || (allowEqual && part.get(left + idx).timestamp == key.timestamp))) {
+            idx *= 2;
+        }
+        return binarySearch(part, left + idx / 2, key, allowEqual) - left;
+    }
+
     // merge two pre-sorted runs into one: combine left->mid with mid+1->right
     // fast on large pre-sorted chunks
     public static void merge(List<Entry> entries, int left, int mid, int right) {
+
+        int minGallop = 7;
         // create copies of each run
         List<Entry> leftPart = new ArrayList<>(entries.subList(left, mid + 1));
         List<Entry> rightPart = new ArrayList<>(entries.subList(mid + 1, right + 1));
@@ -55,16 +83,41 @@ public class timSort {
         int j = 0; // idx in right run
         int k = left; // idx to write to in original array
 
+        int leftCount = 0;
+        int rightCount = 0;
+
         // while both runs have elements remaining
         while (i < leftPart.size() && j < rightPart.size()) {
             if (leftPart.get(i).timestamp <= rightPart.get(j).timestamp) { // choose lower timestamp
-                entries.set(k, leftPart.get(i)); // left run is smaller
-                i++;
+                if (leftCount < minGallop) {
+                    entries.set(k, leftPart.get(i)); // left run is smaller
+                    i++;
+                    leftCount++;
+                    rightCount = 0;
+                }
             } else {
-                entries.set(k, rightPart.get(j)); // right run is smaller
-                j++;
+                if (rightCount < minGallop) {
+                    entries.set(k, rightPart.get(j)); // right run is smaller
+                    j++;
+                    rightCount++;
+                    leftCount = 0;
+                }
             }
             k++;
+
+            if (leftCount >= minGallop) {
+                int gallopCount = gallop(leftPart, i, rightPart.get(j), true);
+                for (int c = 0; c < gallopCount; c++) {
+                    entries.set(k++, leftPart.get(i++));
+                }
+                leftCount = 0;
+            } else if (rightCount >= minGallop) {
+                int gallopCount = gallop(rightPart, j, leftPart.get(i), false);
+                for (int c = 0; c < gallopCount; c++) {
+                    entries.set(k++, rightPart.get(j++));
+                }
+                rightCount = 0;
+            }
         }
 
         // left run had leftover items after right is empty, copy leftovers over as is
@@ -124,20 +177,38 @@ public class timSort {
         final int MIN_RUN = 4; // sets the minimum length of a run to prevent inefficiency of small runs
         List<int[]> runs = findRuns(entries, MIN_RUN); // find and store all runs within entries
 
-        while (runs.size() > 1) { // loop through every run merging until only one run remains (fully sorted)
-            List<int[]> mergedRuns = new ArrayList<>();
-            for (int i = 0; i < runs.size(); i += 2) { // loop in steps of two -> handle two runs at a time (merging)
-                if (i + 1 < runs.size()) { // check if there are two runs available to merge
-                    int left = runs.get(i)[0];
-                    int mid = runs.get(i)[1];
-                    int right = runs.get(i + 1)[1];
-                    merge(entries, left, mid, right); // merge the two runs using mergesort algorithm
-                    mergedRuns.add(new int[]{left, right}); // store the new merged run
-                } else {
-                    mergedRuns.add(runs.get(i)); // handles the case where there was an odd run out
-                }
+        Stack<int[]> stack = new Stack<>();
+        for (int[] run : runs) {
+            stack.push(run);
+
+            while (stack.size() >= 3) {
+                int x = stack.get(stack.size() - 1)[1] - stack.get(stack.size() - 1)[0] + 1;
+                int y = stack.get(stack.size() - 2)[1] - stack.get(stack.size() - 2)[0] + 1;
+                int z = stack.get(stack.size() - 3)[1] - stack.get(stack.size() - 3)[0] + 1;
+
+                if (x + y >= z || x >= y) {
+                    if (x < z) {
+                        int[] r2 = stack.pop();
+                        int[] r1 = stack.pop();
+                        merge(entries, r1[0], r1[1], r2[1]);
+                        stack.push(new int[]{r1[0], r2[1]});
+                    } else {
+                        int[] r2 = stack.pop();
+                        int[] r1 = stack.pop();
+                        int[] r0 = stack.pop();
+                        merge(entries, r0[0], r0[1], r1[1]);
+                        stack.push(new int[]{r0[0], r1[1]});
+                        stack.push(r2);
+                    }
+                } else break;
             }
-            runs = mergedRuns; // replace old runs with the newly merged runs
+        }
+
+        while (stack.size() > 1) { // loop through every run merging until only one run remains (fully sorted)
+            int[] r2 = stack.pop();
+            int[] r1 = stack.pop();
+            merge(entries, r1[0], r1[1], r2[1]); // merge the two runs using mergesort algorithm
+            stack.push(new int[]{r1[0], r2[1]}); // store the new merged run
         }
     }
 
