@@ -38,7 +38,7 @@ public class treaps {
     the elements are less than or equal to the key we are at.
     the way it works is when we are at a node, if the current node is less than or equal to the keys value,
     we split the nodes right subtree because there may be larger values that we need to split,
-    if the key is greater than the current nodes value, we split the nodes left subtree because there may be smaller values that we need to split.
+    if the current root key is not less than or equal to the key we are splitting on value, we split the nodes left subtree because there may be smaller values that we need to split.
     so we will create two treaps both priority ordered, split by key, and we will return them as an array of nodes.
     */
     private Node[] split(Node root, int key) {
