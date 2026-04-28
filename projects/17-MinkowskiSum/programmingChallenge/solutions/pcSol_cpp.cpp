@@ -84,6 +84,7 @@ vector<point> minkowskiSum(vector<point>& polyA, vector<point>& polyB) {
 double minDistance(vector<point>& A, vector<point> B) {
     // Minimum distance is the distance between (0, 0)
     // and the Minkowski sum A + (-B), so first compute -B
+    // Note that B also stays in counter-clockwise order
     for (int i=0; i < B.size(); i++) {
         B[i] = {-B[i].x, -B[i].y};
     }
@@ -192,12 +193,12 @@ struct DisjointSetUnion {
 
 // Perform Kruskall's algorithm to get minimum spanning tree
 // Prim's algorithm would also work just as well.
-vector<vector<pair<int, double>>> getMST(vector<vector<pair<int, double>>> adj) {
+vector<vector<pair<int, double>>> getMST(vector<vector<pair<int, double>>>& adj) {
     const int n = adj.size();
     vector<tuple<double, int, int>> edges;
     for (int i=0; i < adj.size(); i++) {
         for (int j=0; j < adj[i].size(); j++) {
-            edges.push_back({adj[i][j].second, i, j});
+            edges.push_back({adj[i][j].second, i, adj[i][j].first});
         }
     }
     DisjointSetUnion dsu(n);
