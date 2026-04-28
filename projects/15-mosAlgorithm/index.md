@@ -6,7 +6,7 @@ Go [back to home page](../../index.html)
 <a name="overview"></a>Executive Summary
 ---------------------------------------
 
-- [Executive Summary](./Mo's Executive Summary.pdf)
+- [Executive Summary]("./Mo's Executive Summary.pdf")
 
 <a name="overview"></a>Implementation
 ---------------------------------------
@@ -32,9 +32,9 @@ Go [back to home page](../../index.html)
 <a name="overview"></a>Programming Challenge
 ---------------------------------------
 
-- [Programming Challenge](./programmingChallenge/Mo's Executive Summary.pdf)
+- [Programming Challenge]("./programmingChallenge/Mo's_Programming_Challenge.pdf")
 	- Solutions:
-		- [C++](./programmingChallenge/solutions.pcSol_cpp.cpp)
+		- [Rust](./programmingChallenge/src/mos/)
 	- Test Cases:
 		- [Folder](./programmingChallenge/io)
 	
