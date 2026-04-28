@@ -6,7 +6,7 @@ Go [back to home page](../../index.html)
 <a name="overview"></a>Executive Summary
 ---------------------------------------
 
-- [Executive Summary]("./Mo's Executive Summary.pdf")
+- [Executive Summary](./Mos_Executive_Summary.pdf)
 
 <a name="overview"></a>Implementation
 ---------------------------------------
@@ -32,7 +32,7 @@ Go [back to home page](../../index.html)
 <a name="overview"></a>Programming Challenge
 ---------------------------------------
 
-- [Programming Challenge]("./programmingChallenge/Mo's_Programming_Challenge.pdf")
+- [Programming Challenge](./programmingChallenge/Mos_Programming_Challenge.pdf)
 	- Solutions:
 		- [Rust](./programmingChallenge/src/mos/)
 	- Test Cases:
