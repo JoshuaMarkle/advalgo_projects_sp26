@@ -32,7 +32,7 @@ Go [back to home page](../../index.html)
 <a name="overview"></a>Programming Challenge
 ---------------------------------------
 
-- [Programming Challenge](./programmingChallenge/Mos_Programming_Challenge.pdf)
+- [Programming Challenge](./programmingChallenge/Mo_Programming_Challenge.pdf)
 	- Solutions:
 		- [Rust](./programmingChallenge/src/mos/)
 	- Test Cases:
